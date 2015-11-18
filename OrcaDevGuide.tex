@@ -31,6 +31,9 @@
   tabsize=3
   }
 \begin{document}
+\maketitle
+\tableofcontents
+
 As a pedagogical excercise this guide will show how one can add a new hardware object (in this case, the
  Toaster) to SNO+'s DAQ software, Orca. This will hopefully provide the reader with enough general
   knowledge about Orca that he/she will be able to tackle their own DAQ software related tasks without large
@@ -330,14 +333,14 @@ For the purpose of this guide I'll use the NetSocket class, but I'll also provid
 Additionally, you might at this point realize that you don't actually have a Toaster that talks of Ethernet. 
 For the purpose of testing and playing provided \href{LinkToScript}{here} is a script that will listen for connections on port 4004 and provide Toaster-esque responses
 \footnote{Caveat Emptor: I made this script as stupid as possible.
- It must be run on the same computer that you're testing with and it only responds with 0 or 1 for okay or not okay.
+ It must be run on the same computer that you're testing with and it only responds with 1 or 0 for okay or not okay.
   If you feel compelled to improve it please do so and contact someone to replace my shitty version with you improved one.}.
   Or you can use the netcat (or nc) utility that is on most apple computers (I think).
   
  To begin add two more variables to the Model a BOOL to designate the state of the connection and a NetSocket to actually do the connecting.
  Don't forget to forward declare/import the NetSocket class.
- Then create the appropriate getters/setters for each variable.
- The only non-straightforward thing the setSocket should look like the following
+ Then create the appropriate getters/setters for each variable, if you want to implement some notifications now that's up to you..
+ The only non-straightforward thing is that the setSocket setter should look like the following
 \begin{lstlisting}
  - (void) setSock:(NetSocket*) _sock
 {
@@ -353,6 +356,7 @@ By calling retain on the new socket it informs the application to keep track of 
 Similarly the release call on the old socket will tell the application to go ahead and forget about that object and to free any memory associated with it.
 Without the retain call the socket connection would close almost immediately.  
 The last line, the "setDelegate" call is a bit more tricky to explain but it allows us to explore an important idea.
+So for the time being I'll diverge from the networking idea to explain the use of delegates.
 \subsection{Delegates and Protocols}
 Delegation is a design pattern used heavily in Orca, and generally in all Cocoa apps. 
 It is somewhat similar to the notification system except objects can't declare themselves delegates at run-time unlike how objects can register for notifications.
@@ -384,7 +388,7 @@ It's worth noting that NetSocket doesn't \emph{actually} define a protocol.
  The first two functions must be implemented by any delegate, whereas the third can optionally be implemented.
  
  Now ToasterModel can declare itself a follower of this protocol in the following way
- \footnote{Again, don't actually do this NetSocketDelegate isn't really a protocol in Orca, I'm just pretending it is for this pedagogical example}.
+ \footnote{Again, don't actually do this NetSocketDelegate isn't really a protocol in Orca, I'm just pretending it is for this pedagogical example.}.
   \begin{lstlisting}
  @interface ToasterModel : OrcaObject <NetSocketDelegate>
  \end{lstlisting}
@@ -401,8 +405,44 @@ So, now that we understand a bit more about delegates, the question becomes what
 Well, in true Orca fashion, the various protocol functions have no documentation. 
 Trying to figure out when each may get called and what's expected to occur with in them is pure guesswork, checkout Appendix \ref{App:AppendixB} to see for yourself. 
 Luckily since NetSocket doesn't actually define a protocol we don't have to implement a single function, all of them are optional. 
-However, a few of them are indeed in our interest to use.
+So for the time being let's not implement any of them. 
 
+To get Orca to connect to the Toaster server I added another button to the View and the appropriate function to the Controller.
+The controller simply calls a function in the model that I name "connectToToaster" and defined as such.
+\begin{lstlisting}
+-(BOOL) connectToToaster
+{
+    [self setSock:[NetSocket netsocket]];
+    [self setIsConnected:[sock connectToHost:@"localhost" port:4004]];
+    return isConnected;
+}
+\end{lstlisting}
+Where localhost is the IP address of the computer I'd like to connect to and 4004 is the port.
+And if you have a notification attached to the state of the isConnected variable you can now make the View display whether or not Orca is connected to the Toaster. 
+What a time to be alive.
+\subsection{Commanding the Toast}
+There's only one more teen-weeny step before we have a really nice, functional, toast-tastic Toaster.
+We can connect to the Toaster but we can't send it commands.
+What use is a network connection that has no data being sent across it?
+Unfortunately, data comes in many shapes and forms; what type of data needs to be sent depends largely on what sort of server you have on the other side.
+For other pieces of hardware this step could be much worse and require some weird encoding of data into bitstreams
+\footnote{See the XL3}.
+But for the Toaster lets avoid that messy business. 
+The Toaster is perfectly happy to deal with strings which it parses to find valid commands.
+So to send just such a command add the following function to the Model
+\footnote{This function assumes you're using my ToasterServer script because it expects input after each command. If you're using something else chances are it won't respond appropriately.}.
+\begin{lstlisting}
+-(BOOL) changeToasterState
+{
+    [sock writeString:@"changeState" encoding:NSUTF8StringEncoding];
+    NSString *response = [sock readString: NSUTF8StringEncoding];
+    if ([response boolValue])
+    {
+        [self setToastEnable:![self toastEnable]];
+    }
+    return [response boolValue];
+}
+\end{lstlisting}
 
 
 

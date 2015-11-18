@@ -12,6 +12,6 @@ if __name__ == "__main__":
         recv_statement = clientsocket.recv(256).strip()
         print recv_statement
 	if 'changeState' in recv_statement:
-	    clientsocket.send('0\n')
-	else:
 	    clientsocket.send('1\n')
+	else:
+	    clientsocket.send('0\n')
